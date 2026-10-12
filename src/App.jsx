@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const INITIAL_PLAYERS = () =>
@@ -10,9 +10,20 @@ const INITIAL_PLAYERS = () =>
 const INITIAL_SETTINGS = {
   courts: 3,
   hours: 2.5,
-  gameMinutes: 25,
-  changeoverMinutes: 5,
 };
+
+// The first planning estimate is replaced by the average from timed games.
+const DEFAULT_AVERAGE_GAME_MINUTES = 15;
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  const totalSeconds = Math.floor(seconds);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (hours > 0) return hours + "h " + minutes + "m " + remainingSeconds + "s";
+  return minutes + "m " + String(remainingSeconds).padStart(2, "0") + "s";
+}
 
 function shuffle(items) {
   const result = [...items];
@@ -23,8 +34,9 @@ function shuffle(items) {
   return result;
 }
 
-function calculateCapacity(players, settings) {
-  const slotMinutes = Number(settings.gameMinutes) + Number(settings.changeoverMinutes);
+function calculateCapacity(players, settings, averageGameMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
+  // Prevent an accidental short timer from making the capacity estimate unrealistic.
+  const slotMinutes = Math.max(5, Number(averageGameMinutes) || DEFAULT_AVERAGE_GAME_MINUTES);
   const roundsAvailable = slotMinutes > 0
     ? Math.floor((Number(settings.hours) * 60) / slotMinutes)
     : 0;
@@ -37,19 +49,13 @@ function calculateCapacity(players, settings) {
     ? Math.min(roundsAvailable, Math.floor((maximumMatches * 4) / players.length))
     : 0;
 
-  return {
-    slotMinutes,
-    roundsAvailable,
-    gamesPerRound,
-    maximumMatches,
-    maxGamesPerPlayer,
-  };
+  return { slotMinutes, roundsAvailable, gamesPerRound, maximumMatches, maxGamesPerPlayer };
 }
 
-function generateSchedule(players, settings, requestedGamesPerPlayer) {
+function generateSchedule(players, settings, requestedGamesPerPlayer, averageGameMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
   if (players.length < 4) return [];
 
-  const capacity = calculateCapacity(players, settings);
+  const capacity = calculateCapacity(players, settings, averageGameMinutes);
   const target = Math.max(0, Math.min(
     Math.floor(Number(requestedGamesPerPlayer) || 0),
     capacity.maxGamesPerPlayer
@@ -87,6 +93,9 @@ function generateSchedule(players, settings, requestedGamesPerPlayer) {
         scoreA: "",
         scoreB: "",
         completed: false,
+        startedAt: null,
+        endedAt: null,
+        durationSeconds: null,
       });
       group.forEach((id) => {
         appearanceCounts[id] += 1;
@@ -107,10 +116,30 @@ function App() {
     generateSchedule(INITIAL_PLAYERS(), INITIAL_SETTINGS, 5)
   );
   const [editingGame, setEditingGame] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const averageGameSeconds = useMemo(() => {
+    const durations = schedule
+      .map((game) => game.durationSeconds)
+      .filter((seconds) => Number.isFinite(seconds) && seconds > 0);
+    if (durations.length === 0) return null;
+    return durations.reduce((sum, seconds) => sum + seconds, 0) / durations.length;
+  }, [schedule]);
+
+  const averageGameMinutes = averageGameSeconds === null
+    ? DEFAULT_AVERAGE_GAME_MINUTES
+    : Math.max(5, averageGameSeconds / 60);
+
+  const hasRunningGames = schedule.some((game) => game.startedAt && !game.endedAt);
+  useEffect(() => {
+    if (!hasRunningGames) return undefined;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasRunningGames]);
 
   const capacity = useMemo(
-    () => calculateCapacity(players, settings),
-    [players, settings]
+    () => calculateCapacity(players, settings, averageGameMinutes),
+    [players, settings, averageGameMinutes]
   );
   const effectiveGamesPerPlayer = Math.min(gamesPerPlayer, capacity.maxGamesPerPlayer);
   const playerName = (id) =>
@@ -162,17 +191,10 @@ function App() {
   const lastScheduledRound = Math.max(0, ...schedule.map((game) => game.round));
 
   function regenerate(nextPlayers = players, nextSettings = settings, desiredGames = gamesPerPlayer) {
-    const nextCapacity = calculateCapacity(nextPlayers, nextSettings);
+    const nextCapacity = calculateCapacity(nextPlayers, nextSettings, averageGameMinutes);
     const target = Math.min(desiredGames, nextCapacity.maxGamesPerPlayer);
-    setSchedule(generateSchedule(nextPlayers, nextSettings, target));
+    setSchedule(generateSchedule(nextPlayers, nextSettings, target, averageGameMinutes));
     setEditingGame(null);
-  }
-
-  function updateSetting(field, value) {
-    if (value === "") return;
-    const number = Number(value);
-    if (!Number.isFinite(number)) return;
-    setSettings((current) => ({ ...current, [field]: number }));
   }
 
   function addPlayer() {
@@ -203,6 +225,9 @@ function App() {
       targetGame.scoreA = "";
       targetGame.scoreB = "";
       targetGame.completed = false;
+      targetGame.startedAt = null;
+      targetGame.endedAt = null;
+      targetGame.durationSeconds = null;
 
       const sameGameSlot = targetGame.players.indexOf(playerId);
       if (sameGameSlot !== -1) {
@@ -224,6 +249,9 @@ function App() {
         otherGame.scoreA = "";
         otherGame.scoreB = "";
         otherGame.completed = false;
+        otherGame.startedAt = null;
+        otherGame.endedAt = null;
+        otherGame.durationSeconds = null;
       }
 
       targetGame.players[slot] = playerId;
@@ -249,6 +277,36 @@ function App() {
     setSchedule((current) => current.map((game) =>
       game.id === gameId
         ? { ...game, scoreA: "", scoreB: "", completed: false }
+        : game
+    ));
+  }
+
+  function startGameTimer(gameId) {
+    const startedAt = Date.now();
+    setNow(startedAt);
+    setSchedule((current) => current.map((game) =>
+      game.id === gameId
+        ? { ...game, startedAt, endedAt: null, durationSeconds: null }
+        : game
+    ));
+  }
+
+  function finishGameTimer(gameId) {
+    const endedAt = Date.now();
+    setSchedule((current) => current.map((game) => {
+      if (game.id !== gameId || !game.startedAt || game.endedAt) return game;
+      return {
+        ...game,
+        endedAt,
+        durationSeconds: Math.max(1, Math.round((endedAt - game.startedAt) / 1000)),
+      };
+    }));
+  }
+
+  function clearGameTimer(gameId) {
+    setSchedule((current) => current.map((game) =>
+      game.id === gameId
+        ? { ...game, startedAt: null, endedAt: null, durationSeconds: null }
         : game
     ));
   }
@@ -319,7 +377,7 @@ function App() {
           <div>
             <p className="section-kicker">SESSION SETTINGS</p>
             <h2>Courts and playing time</h2>
-            <p className="section-description">The maximum games per player is calculated from your session length and court capacity.</p>
+            <p className="section-description">The maximum games per player is calculated from session hours, available courts, and the average measured game time.</p>
           </div>
           <span className="pill">{capacity.roundsAvailable} rounds available</span>
         </div>
@@ -327,23 +385,13 @@ function App() {
         <div className="settings-grid">
           <label className="setting-field">
             <span>Available hours</span>
-            <input type="number" min="0.25" max="24" step="0.25" value={settings.hours} onChange={(event) => updateSetting("hours", Math.max(0.25, Math.min(24, Number(event.target.value))))} />
+            <input type="number" min="0.25" max="24" step="0.25" value={settings.hours} onChange={(event) => setSettings((current) => ({ ...current, hours: Math.max(0.25, Math.min(24, Number(event.target.value) || 0.25)) }))} />
             <small>Total session duration</small>
           </label>
           <label className="setting-field">
             <span>Number of courts</span>
-            <input type="number" min="1" max="12" step="1" value={settings.courts} onChange={(event) => updateSetting("courts", Math.max(1, Math.min(12, Math.floor(Number(event.target.value) || 1))))} />
+            <input type="number" min="1" max="12" step="1" value={settings.courts} onChange={(event) => setSettings((current) => ({ ...current, courts: Math.max(1, Math.min(12, Math.floor(Number(event.target.value) || 1))) }))} />
             <small>Courts available at once</small>
-          </label>
-          <label className="setting-field">
-            <span>Game length (minutes)</span>
-            <input type="number" min="5" max="240" step="5" value={settings.gameMinutes} onChange={(event) => updateSetting("gameMinutes", Math.max(5, Math.min(240, Math.floor(Number(event.target.value) || 5))))} />
-            <small>Playing time per game</small>
-          </label>
-          <label className="setting-field">
-            <span>Changeover (minutes)</span>
-            <input type="number" min="0" max="60" step="1" value={settings.changeoverMinutes} onChange={(event) => updateSetting("changeoverMinutes", Math.max(0, Math.min(60, Math.floor(Number(event.target.value) || 0))))} />
-            <small>Rest and court turnover</small>
           </label>
           <label className="setting-field">
             <span>Games per player</span>
@@ -355,17 +403,22 @@ function App() {
             <strong>{capacity.maxGamesPerPlayer}</strong>
             <small>Fair rotation estimate</small>
           </div>
+          <div className="average-box">
+            <span>AVERAGE GAME TIME</span>
+            <strong>{averageGameSeconds === null ? "15 min*" : formatDuration(averageGameSeconds)}</strong>
+            <small>{averageGameSeconds === null ? "Initial planning estimate" : "Average of " + schedule.filter((game) => Number.isFinite(game.durationSeconds) && game.durationSeconds > 0).length + " timed game(s)"}</small>
+          </div>
         </div>
 
         <div className="capacity-details">
-          <div><span>Game slot</span><strong>{capacity.slotMinutes} min</strong></div>
+          <div><span>Average time used for planning</span><strong>{capacity.slotMinutes.toFixed(1)} min</strong></div>
           <div><span>Rounds in session</span><strong>{capacity.roundsAvailable}</strong></div>
           <div><span>Games per round</span><strong>{capacity.gamesPerRound}</strong></div>
           <div><span>Session game capacity</span><strong>{capacity.maximumMatches}</strong></div>
         </div>
 
         <div className="settings-actions">
-          <p>Changing settings here recalculates the limit. Generate a schedule to apply them; previous scores will be cleared.</p>
+          <p>Use each game’s timer to calculate an average automatically. Until games are timed, the scheduler uses a 15-minute estimate and a 5-minute minimum for capacity planning. Generating a new schedule clears scores and timers.</p>
           <button className="button button-primary" disabled={capacity.maxGamesPerPlayer === 0} onClick={() => regenerate()}>
             Apply settings & generate
           </button>
@@ -470,6 +523,25 @@ function App() {
                     <div className="team team-b"><span className="team-label">TEAM B</span><strong>{playerName(game.players[2])}</strong><strong>{playerName(game.players[3])}</strong></div>
                   </div>
 
+                  <div className="game-timer">
+                    <div className="timer-heading">
+                      <span className="score-label">GAME TIMER</span>
+                      <strong>
+                        {game.durationSeconds !== null && game.durationSeconds !== undefined
+                          ? "Recorded: " + formatDuration(game.durationSeconds)
+                          : game.startedAt
+                            ? "In progress: " + formatDuration((now - game.startedAt) / 1000)
+                            : "Not timed yet"}
+                      </strong>
+                    </div>
+                    <div className="timer-actions">
+                      {game.startedAt && !game.endedAt
+                        ? <button className="button button-quiet" onClick={() => finishGameTimer(game.id)}>Finish & record time</button>
+                        : <button className="button button-quiet" onClick={() => startGameTimer(game.id)}>{game.endedAt ? "Retake time" : "Start game timer"}</button>}
+                      {(game.startedAt || game.endedAt) && <button className="clear-score" onClick={() => clearGameTimer(game.id)}>Reset timer</button>}
+                    </div>
+                  </div>
+
                   <div className="score-area">
                     <span className="score-label">FINAL SCORE</span>
                     <div className="score-inputs">
@@ -516,7 +588,7 @@ function App() {
         <p className="ranking-note">Unplayed games do not affect rankings. Tied scores aren’t counted as completed results.</p>
       </section>
 
-      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span></footer>
+      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span><span>*15-minute estimate until game timers are recorded.</span></footer>
     </main>
   );
 }
