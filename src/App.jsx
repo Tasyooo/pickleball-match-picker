@@ -263,10 +263,10 @@ function App() {
   }
 
   function updateGameDuration(gameId, value) {
-    if (value !== "" && (!/^\\d+(?:\\.\\d{0,1})?$/.test(value) || Number(value) <= 0 || Number(value) > 240)) return;
+    if (value !== "" && (!/^\d+(?:\.\d{0,1})?$/.test(value) || Number(value) <= 0 || Number(value) > 240)) return;
     setSchedule((current) => current.map((game) =>
       game.id === gameId
-        ? { ...game, durationMinutes: value === "" ? null : Number(value) }
+        ? { ...game, durationMinutes: value === "" ? null : value }
         : game
     ));
   }
