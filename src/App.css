@@ -159,7 +159,7 @@ h1 { margin-bottom: 6px; font-size: clamp(26px, 3.2vw, 39px); letter-spacing: -1
 }
 
 
-/* Computed average game time and per-game timing controls */
+/* Actual game duration entry and computed average */
 .average-box {
   display: flex;
   flex-direction: column;
@@ -187,35 +187,33 @@ h1 { margin-bottom: 6px; font-size: clamp(26px, 3.2vw, 39px); letter-spacing: -1
   font-size: 10px;
   line-height: 1.4;
 }
-.game-timer {
+.game-duration-entry {
   margin-top: 15px;
   padding: 12px;
   border: 1px solid #e3eee7;
   border-radius: 9px;
   background: #f8fbf9;
 }
-.timer-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+.duration-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #5c7968;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .8px;
 }
-.timer-heading strong {
-  color: #315f47;
+.game-duration-entry input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #dfe8e2;
+  border-radius: 8px;
+  background: #fff;
+  color: #20362a;
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
-.timer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-.timer-actions .button {
-  white-space: normal;
+.game-duration-entry .score-hint {
+  margin-bottom: 0;
 }
 @media (max-width: 640px) {
   .average-box strong { font-size: 19px; }
-  .timer-actions { align-items: stretch; }
-  .timer-actions .button { flex: 1; }
 }
