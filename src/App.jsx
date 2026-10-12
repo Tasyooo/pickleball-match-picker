@@ -423,7 +423,7 @@ function App() {
             Apply settings & generate
           </button>
         </div>
-        {capacity.maxGamesPerPlayer === 0 && <p className="warning-text">There isn’t enough time for one full game slot with these settings. Increase the hours or reduce game/changeover minutes.</p>}
+        {capacity.maxGamesPerPlayer === 0 && <p className="warning-text">There isn’t enough time for a game based on the measured average. Increase the session hours or time another game to update the estimate.</p>}
       </section>
 
       <section className="section-card roster-card">
