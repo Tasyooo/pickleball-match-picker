@@ -200,6 +200,10 @@ function App() {
       const currentId = targetGame.players[slot];
       if (currentId === playerId) return current;
 
+      targetGame.scoreA = "";
+      targetGame.scoreB = "";
+      targetGame.completed = false;
+
       const sameGameSlot = targetGame.players.indexOf(playerId);
       if (sameGameSlot !== -1) {
         [targetGame.players[slot], targetGame.players[sameGameSlot]] =
@@ -207,7 +211,7 @@ function App() {
         return next;
       }
 
-      // Keep a player from appearing on two courts in the same round.
+      // Swap players across courts when needed, so nobody is double-booked.
       const otherGame = next.find((game) =>
         game.id !== gameId &&
         game.round === targetGame.round &&
@@ -217,6 +221,9 @@ function App() {
       if (otherGame) {
         const otherSlot = otherGame.players.indexOf(playerId);
         otherGame.players[otherSlot] = currentId;
+        otherGame.scoreA = "";
+        otherGame.scoreB = "";
+        otherGame.completed = false;
       }
 
       targetGame.players[slot] = playerId;
@@ -247,9 +254,35 @@ function App() {
   }
 
   function updateGameDetail(gameId, field, value) {
-    setSchedule((current) => current.map((game) =>
-      game.id === gameId ? { ...game, [field]: Number(value) } : game
-    ));
+    const numericValue = Number(value);
+    setSchedule((current) => {
+      const next = current.map((game) => ({ ...game, players: [...game.players] }));
+      const targetGame = next.find((game) => game.id === gameId);
+      if (!targetGame) return current;
+
+      if (field === "round") {
+        const collision = next.some((game) =>
+          game.id !== gameId &&
+          game.round === numericValue &&
+          (game.court === targetGame.court ||
+            game.players.some((id) => targetGame.players.includes(id)))
+        );
+        if (collision) return current;
+        targetGame.round = numericValue;
+        return next;
+      }
+
+      if (field === "court") {
+        const otherGame = next.find((game) =>
+          game.id !== gameId &&
+          game.round === targetGame.round &&
+          game.court === numericValue
+        );
+        if (otherGame) otherGame.court = targetGame.court;
+        targetGame.court = numericValue;
+      }
+      return next;
+    });
   }
 
   function resetResults() {
@@ -427,7 +460,7 @@ function App() {
                           </select>
                         </label>
                       ))}
-                      <p className="editor-hint">If you select a player scheduled on another court in this round, the two players swap games.</p>
+                      <p className="editor-hint">Players selected from another game in this round swap games. Round changes are rejected if they would double-book a player or court.</p>
                     </div>
                   )}
 
