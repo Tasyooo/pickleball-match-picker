@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
 
 const INITIAL_PLAYERS = () =>
@@ -12,17 +12,12 @@ const INITIAL_SETTINGS = {
   hours: 2.5,
 };
 
-// The first planning estimate is replaced by the average from timed games.
+// Planning estimate used until actual game durations are entered.
 const DEFAULT_AVERAGE_GAME_MINUTES = 15;
 
-function formatDuration(seconds) {
-  if (!Number.isFinite(seconds) || seconds < 0) return "—";
-  const totalSeconds = Math.floor(seconds);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const remainingSeconds = totalSeconds % 60;
-  if (hours > 0) return hours + "h " + minutes + "m " + remainingSeconds + "s";
-  return minutes + "m " + String(remainingSeconds).padStart(2, "0") + "s";
+function formatMinutes(minutes) {
+  if (!Number.isFinite(minutes) || minutes < 0) return "—";
+  return minutes.toFixed(1) + " min";
 }
 
 function shuffle(items) {
@@ -35,7 +30,7 @@ function shuffle(items) {
 }
 
 function calculateCapacity(players, settings, averageGameMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
-  // Prevent an accidental short timer from making the capacity estimate unrealistic.
+  // Avoid unrealistic capacity when a very short duration is entered.
   const slotMinutes = Math.max(5, Number(averageGameMinutes) || DEFAULT_AVERAGE_GAME_MINUTES);
   const roundsAvailable = slotMinutes > 0
     ? Math.floor((Number(settings.hours) * 60) / slotMinutes)
@@ -93,9 +88,7 @@ function generateSchedule(players, settings, requestedGamesPerPlayer, averageGam
         scoreA: "",
         scoreB: "",
         completed: false,
-        startedAt: null,
-        endedAt: null,
-        durationSeconds: null,
+        durationMinutes: null,
       });
       group.forEach((id) => {
         appearanceCounts[id] += 1;
@@ -116,26 +109,18 @@ function App() {
     generateSchedule(INITIAL_PLAYERS(), INITIAL_SETTINGS, 5)
   );
   const [editingGame, setEditingGame] = useState(null);
-  const [now, setNow] = useState(() => Date.now());
 
-  const averageGameSeconds = useMemo(() => {
+  const averageGameMinutesMeasured = useMemo(() => {
     const durations = schedule
-      .map((game) => game.durationSeconds)
-      .filter((seconds) => Number.isFinite(seconds) && seconds > 0);
+      .map((game) => Number(game.durationMinutes))
+      .filter((minutes) => Number.isFinite(minutes) && minutes > 0);
     if (durations.length === 0) return null;
-    return durations.reduce((sum, seconds) => sum + seconds, 0) / durations.length;
+    return durations.reduce((sum, minutes) => sum + minutes, 0) / durations.length;
   }, [schedule]);
 
-  const averageGameMinutes = averageGameSeconds === null
+  const averageGameMinutes = averageGameMinutesMeasured === null
     ? DEFAULT_AVERAGE_GAME_MINUTES
-    : Math.max(5, averageGameSeconds / 60);
-
-  const hasRunningGames = schedule.some((game) => game.startedAt && !game.endedAt);
-  useEffect(() => {
-    if (!hasRunningGames) return undefined;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [hasRunningGames]);
+    : averageGameMinutesMeasured;
 
   const capacity = useMemo(
     () => calculateCapacity(players, settings, averageGameMinutes),
@@ -225,9 +210,7 @@ function App() {
       targetGame.scoreA = "";
       targetGame.scoreB = "";
       targetGame.completed = false;
-      targetGame.startedAt = null;
-      targetGame.endedAt = null;
-      targetGame.durationSeconds = null;
+      targetGame.durationMinutes = null;
 
       const sameGameSlot = targetGame.players.indexOf(playerId);
       if (sameGameSlot !== -1) {
@@ -249,9 +232,7 @@ function App() {
         otherGame.scoreA = "";
         otherGame.scoreB = "";
         otherGame.completed = false;
-        otherGame.startedAt = null;
-        otherGame.endedAt = null;
-        otherGame.durationSeconds = null;
+        otherGame.durationMinutes = null;
       }
 
       targetGame.players[slot] = playerId;
@@ -281,32 +262,11 @@ function App() {
     ));
   }
 
-  function startGameTimer(gameId) {
-    const startedAt = Date.now();
-    setNow(startedAt);
+  function updateGameDuration(gameId, value) {
+    if (value !== "" && (!/^\\d+(?:\\.\\d{0,1})?$/.test(value) || Number(value) <= 0 || Number(value) > 240)) return;
     setSchedule((current) => current.map((game) =>
       game.id === gameId
-        ? { ...game, startedAt, endedAt: null, durationSeconds: null }
-        : game
-    ));
-  }
-
-  function finishGameTimer(gameId) {
-    const endedAt = Date.now();
-    setSchedule((current) => current.map((game) => {
-      if (game.id !== gameId || !game.startedAt || game.endedAt) return game;
-      return {
-        ...game,
-        endedAt,
-        durationSeconds: Math.max(1, Math.round((endedAt - game.startedAt) / 1000)),
-      };
-    }));
-  }
-
-  function clearGameTimer(gameId) {
-    setSchedule((current) => current.map((game) =>
-      game.id === gameId
-        ? { ...game, startedAt: null, endedAt: null, durationSeconds: null }
+        ? { ...game, durationMinutes: value === "" ? null : Number(value) }
         : game
     ));
   }
@@ -405,8 +365,8 @@ function App() {
           </div>
           <div className="average-box">
             <span>AVERAGE GAME TIME</span>
-            <strong>{averageGameSeconds === null ? "15 min*" : formatDuration(averageGameSeconds)}</strong>
-            <small>{averageGameSeconds === null ? "Initial planning estimate" : "Average of " + schedule.filter((game) => Number.isFinite(game.durationSeconds) && game.durationSeconds > 0).length + " timed game(s)"}</small>
+            <strong>{averageGameMinutesMeasured === null ? "15 min*" : formatMinutes(averageGameMinutesMeasured)}</strong>
+            <small>{averageGameMinutesMeasured === null ? "Planning estimate until durations are entered" : "Average of " + schedule.filter((game) => Number.isFinite(Number(game.durationMinutes)) && Number(game.durationMinutes) > 0).length + " game(s)"}</small>
           </div>
         </div>
 
@@ -418,7 +378,7 @@ function App() {
         </div>
 
         <div className="settings-actions">
-          <p>Use each game’s timer to calculate an average automatically. Until games are timed, the scheduler uses a 15-minute estimate and a 5-minute minimum for capacity planning. Generating a new schedule clears scores and timers.</p>
+          <p>Enter each game’s actual duration in minutes to calculate the average automatically. Until durations are entered, the scheduler uses a 15-minute estimate. Generating a new schedule clears scores and durations.</p>
           <button className="button button-primary" disabled={capacity.maxGamesPerPlayer === 0} onClick={() => regenerate()}>
             Apply settings & generate
           </button>
@@ -523,23 +483,21 @@ function App() {
                     <div className="team team-b"><span className="team-label">TEAM B</span><strong>{playerName(game.players[2])}</strong><strong>{playerName(game.players[3])}</strong></div>
                   </div>
 
-                  <div className="game-timer">
-                    <div className="timer-heading">
-                      <span className="score-label">GAME TIMER</span>
-                      <strong>
-                        {game.durationSeconds !== null && game.durationSeconds !== undefined
-                          ? "Recorded: " + formatDuration(game.durationSeconds)
-                          : game.startedAt
-                            ? "In progress: " + formatDuration((now - game.startedAt) / 1000)
-                            : "Not timed yet"}
-                      </strong>
-                    </div>
-                    <div className="timer-actions">
-                      {game.startedAt && !game.endedAt
-                        ? <button className="button button-quiet" onClick={() => finishGameTimer(game.id)}>Finish & record time</button>
-                        : <button className="button button-quiet" onClick={() => startGameTimer(game.id)}>{game.endedAt ? "Retake time" : "Start game timer"}</button>}
-                      {(game.startedAt || game.endedAt) && <button className="clear-score" onClick={() => clearGameTimer(game.id)}>Reset timer</button>}
-                    </div>
+                  <div className="game-duration-entry">
+                    <label className="duration-label" htmlFor={"duration-" + game.id}>ACTUAL GAME DURATION (MINUTES)</label>
+                    <input
+                      id={"duration-" + game.id}
+                      type="number"
+                      min="0.1"
+                      max="240"
+                      step="0.1"
+                      value={game.durationMinutes ?? ""}
+                      placeholder="Enter duration"
+                      onChange={(event) => updateGameDuration(game.id, event.target.value)}
+                    />
+                    <p className="score-hint">
+                      {game.durationMinutes ? "Recorded duration: " + formatMinutes(Number(game.durationMinutes)) : "Enter the time taken for this game to update the average."}
+                    </p>
                   </div>
 
                   <div className="score-area">
@@ -588,7 +546,7 @@ function App() {
         <p className="ranking-note">Unplayed games do not affect rankings. Tied scores aren’t counted as completed results.</p>
       </section>
 
-      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span><span>*15-minute estimate until game timers are recorded.</span></footer>
+      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span><span>*15-minute estimate until actual game durations are entered.</span></footer>
     </main>
   );
 }
