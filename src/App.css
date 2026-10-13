@@ -217,3 +217,166 @@ h1 { margin-bottom: 6px; font-size: clamp(26px, 3.2vw, 39px); letter-spacing: -1
 @media (max-width: 640px) {
   .average-box strong { font-size: 19px; }
 }
+
+
+/* Scheduled game events and RSVP list */
+.event-planner-card {
+  margin-bottom: 24px;
+}
+.event-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+.event-form .setting-field {
+  align-self: stretch;
+}
+.event-form .setting-field input {
+  width: 100%;
+}
+.event-title-field,
+.event-notes-field {
+  grid-column: span 2;
+}
+.event-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 15px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e9efeb;
+}
+.event-form-actions p {
+  max-width: 650px;
+  margin: 0;
+  color: #7a887f;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.event-form-actions .button {
+  flex-shrink: 0;
+}
+.event-empty {
+  margin-top: 18px;
+}
+.scheduled-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 18px;
+}
+.scheduled-session-card {
+  padding: 18px;
+  border: 1px solid #e2eae5;
+  border-radius: 12px;
+  background: #fbfdfb;
+}
+.scheduled-session-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.scheduled-session-info {
+  min-width: 0;
+}
+.scheduled-session-info h3 {
+  margin: 5px 0 9px;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 15px;
+  margin: 0;
+  color: #64746a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.session-notes {
+  margin: 9px 0 0;
+  color: #78867d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rsvp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 16px 0;
+}
+.rsvp-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.going-count { background: #e4f5e9; color: #176b43; }
+.maybe-count { background: #fff4dc; color: #886014; }
+.not-going-count { background: #fbe9e7; color: #9d4d42; }
+.pending-count { background: #eef1ef; color: #68756c; }
+.rsvp-roster {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.rsvp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #e7ede9;
+  border-radius: 8px;
+  background: #fff;
+}
+.rsvp-player-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #304438;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rsvp-row select {
+  flex: 0 0 118px;
+  max-width: 52%;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #dfe8e2;
+  border-radius: 7px;
+  background: #fff;
+  color: #304438;
+  font-size: 10px;
+}
+@media (max-width: 640px) {
+  .event-form {
+    grid-template-columns: 1fr;
+  }
+  .event-title-field,
+  .event-notes-field {
+    grid-column: span 1;
+  }
+  .event-form-actions,
+  .scheduled-session-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .event-form-actions .button,
+  .scheduled-session-head .button {
+    width: 100%;
+  }
+  .rsvp-roster {
+    grid-template-columns: 1fr;
+  }
+  .rsvp-row select {
+    flex-basis: 124px;
+  }
+}
