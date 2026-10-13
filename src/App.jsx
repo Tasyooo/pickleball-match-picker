@@ -109,6 +109,12 @@ function App() {
     generateSchedule(INITIAL_PLAYERS(), INITIAL_SETTINGS, 5)
   );
   const [editingGame, setEditingGame] = useState(null);
+  const [scheduledSessions, setScheduledSessions] = useState([]);
+  const [eventTitle, setEventTitle] = useState("Pickleball Session");
+  const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("18:00");
+  const [eventLocation, setEventLocation] = useState("");
+  const [eventNotes, setEventNotes] = useState("");
 
   const averageGameMinutesMeasured = useMemo(() => {
     const durations = schedule
@@ -187,6 +193,10 @@ function App() {
     const id = Math.max(0, ...players.map((player) => player.id)) + 1;
     const nextPlayers = [...players, { id, name: "Player " + id }];
     setPlayers(nextPlayers);
+    setScheduledSessions((current) => current.map((session) => ({
+      ...session,
+      rsvps: { ...session.rsvps, [id]: "pending" },
+    })));
     regenerate(nextPlayers, settings, gamesPerPlayer);
   }
 
@@ -194,7 +204,44 @@ function App() {
     if (players.length <= 4) return;
     const nextPlayers = players.filter((player) => player.id !== id);
     setPlayers(nextPlayers);
+    setScheduledSessions((current) => current.map((session) => {
+      const rsvps = { ...session.rsvps };
+      delete rsvps[id];
+      return { ...session, rsvps };
+    }));
     regenerate(nextPlayers, settings, gamesPerPlayer);
+  }
+
+  function createScheduledSession() {
+    if (!eventTitle.trim() || !eventDate || !eventTime) return;
+    const session = {
+      id: Date.now(),
+      title: eventTitle.trim(),
+      date: eventDate,
+      time: eventTime,
+      location: eventLocation.trim(),
+      notes: eventNotes.trim(),
+      rsvps: Object.fromEntries(players.map((player) => [player.id, "pending"])),
+    };
+    setScheduledSessions((current) =>
+      [...current, session].sort((a, b) =>
+        (a.date + "T" + a.time).localeCompare(b.date + "T" + b.time)
+      )
+    );
+    setEventTitle("Pickleball Session");
+    setEventNotes("");
+  }
+
+  function updateRsvp(sessionId, playerId, status) {
+    setScheduledSessions((current) => current.map((session) =>
+      session.id === sessionId
+        ? { ...session, rsvps: { ...session.rsvps, [playerId]: status } }
+        : session
+    ));
+  }
+
+  function deleteScheduledSession(sessionId) {
+    setScheduledSessions((current) => current.filter((session) => session.id !== sessionId));
   }
 
   function updateMatchup(gameId, slot, selectedId) {
@@ -330,6 +377,103 @@ function App() {
         <div className="stat-card"><span className="stat-label">Players</span><strong>{players.length}</strong><span className="stat-note">Editable roster</span></div>
         <div className="stat-card"><span className="stat-label">Scheduled games</span><strong>{schedule.length}</strong><span className="stat-note">{settings.courts} available courts</span></div>
         <div className="stat-card"><span className="stat-label">Results recorded</span><strong>{completedGames}<small> / {schedule.length}</small></strong><span className="stat-note">Rankings update live</span></div>
+      </section>
+
+      <section className="section-card event-planner-card">
+        <div className="section-title-row">
+          <div>
+            <p className="section-kicker">EVENT PLANNER</p>
+            <h2>Schedule a game & RSVP</h2>
+            <p className="section-description">Create a pickleball session, then record each player’s response.</p>
+          </div>
+          <span className="pill">{scheduledSessions.length} scheduled</span>
+        </div>
+
+        <div className="event-form">
+          <label className="setting-field event-title-field">
+            <span>Game / event name</span>
+            <input type="text" maxLength={80} value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="Friday pickleball games" />
+          </label>
+          <label className="setting-field">
+            <span>Date</span>
+            <input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
+          </label>
+          <label className="setting-field">
+            <span>Start time</span>
+            <input type="time" value={eventTime} onChange={(event) => setEventTime(event.target.value)} />
+          </label>
+          <label className="setting-field">
+            <span>Location / venue</span>
+            <input type="text" maxLength={120} value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} placeholder="Court or venue name" />
+          </label>
+          <label className="setting-field event-notes-field">
+            <span>Notes (optional)</span>
+            <input type="text" maxLength={180} value={eventNotes} onChange={(event) => setEventNotes(event.target.value)} placeholder="Bring balls, split court fee, etc." />
+          </label>
+        </div>
+        <div className="event-form-actions">
+          <p>Each new session starts with all players marked “No response”. You can update the RSVP list below.</p>
+          <button className="button button-primary" disabled={!eventTitle.trim() || !eventDate || !eventTime} onClick={createScheduledSession}>＋ Schedule game</button>
+        </div>
+
+        {scheduledSessions.length === 0 ? (
+          <div className="empty-state event-empty">
+            <h3>No games scheduled yet</h3>
+            <p>Choose a date and start time, then select Schedule game to add an event and collect RSVPs.</p>
+          </div>
+        ) : (
+          <div className="scheduled-sessions-list">
+            {scheduledSessions.map((session) => {
+              const going = players.filter((player) => session.rsvps[player.id] === "going").length;
+              const maybe = players.filter((player) => session.rsvps[player.id] === "maybe").length;
+              const notGoing = players.filter((player) => session.rsvps[player.id] === "not-going").length;
+              const pending = players.length - going - maybe - notGoing;
+              const formattedDate = new Date(session.date + "T" + session.time + ":00").toLocaleString(undefined, {
+                weekday: "short", year: "numeric", month: "short", day: "numeric",
+                hour: "numeric", minute: "2-digit",
+              });
+
+              return (
+                <article className="scheduled-session-card" key={session.id}>
+                  <div className="scheduled-session-head">
+                    <div className="scheduled-session-info">
+                      <span className="game-label">SCHEDULED PICKLEBALL GAME</span>
+                      <h3>{session.title}</h3>
+                      <p className="session-meta"><span>▣ {formattedDate}</span>{session.location && <span>⌖ {session.location}</span>}</p>
+                      {session.notes && <p className="session-notes">{session.notes}</p>}
+                    </div>
+                    <button className="button button-quiet" onClick={() => deleteScheduledSession(session.id)}>Remove event</button>
+                  </div>
+
+                  <div className="rsvp-summary">
+                    <span className="rsvp-count going-count">{going} Going</span>
+                    <span className="rsvp-count maybe-count">{maybe} Maybe</span>
+                    <span className="rsvp-count not-going-count">{notGoing} Can't go</span>
+                    <span className="rsvp-count pending-count">{pending} No response</span>
+                  </div>
+
+                  <div className="rsvp-roster">
+                    {players.map((player) => (
+                      <label className="rsvp-row" key={player.id}>
+                        <span className="rsvp-player-name">{player.name || "Player " + player.id}</span>
+                        <select
+                          aria-label={"RSVP for " + player.name + " at " + session.title}
+                          value={session.rsvps[player.id] || "pending"}
+                          onChange={(event) => updateRsvp(session.id, player.id, event.target.value)}
+                        >
+                          <option value="pending">No response</option>
+                          <option value="going">Going</option>
+                          <option value="maybe">Maybe</option>
+                          <option value="not-going">Can’t go</option>
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="section-card settings-card">
