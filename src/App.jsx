@@ -12,13 +12,8 @@ const INITIAL_SETTINGS = {
   hours: 2.5,
 };
 
-// Planning estimate used until actual game durations are entered.
+// Fixed planning estimate used to calculate session capacity.
 const DEFAULT_AVERAGE_GAME_MINUTES = 15;
-
-function formatMinutes(minutes) {
-  if (!Number.isFinite(minutes) || minutes < 0) return "—";
-  return minutes.toFixed(1) + " min";
-}
 
 function shuffle(items) {
   const result = [...items];
@@ -88,7 +83,6 @@ function generateSchedule(players, settings, requestedGamesPerPlayer, averageGam
         scoreA: "",
         scoreB: "",
         completed: false,
-        durationMinutes: null,
       });
       group.forEach((id) => {
         appearanceCounts[id] += 1;
@@ -116,21 +110,9 @@ function App() {
   const [eventLocation, setEventLocation] = useState("");
   const [eventNotes, setEventNotes] = useState("");
 
-  const averageGameMinutesMeasured = useMemo(() => {
-    const durations = schedule
-      .map((game) => Number(game.durationMinutes))
-      .filter((minutes) => Number.isFinite(minutes) && minutes > 0);
-    if (durations.length === 0) return null;
-    return durations.reduce((sum, minutes) => sum + minutes, 0) / durations.length;
-  }, [schedule]);
-
-  const averageGameMinutes = averageGameMinutesMeasured === null
-    ? DEFAULT_AVERAGE_GAME_MINUTES
-    : averageGameMinutesMeasured;
-
   const capacity = useMemo(
-    () => calculateCapacity(players, settings, averageGameMinutes),
-    [players, settings, averageGameMinutes]
+    () => calculateCapacity(players, settings, DEFAULT_AVERAGE_GAME_MINUTES),
+    [players, settings]
   );
   const effectiveGamesPerPlayer = Math.min(gamesPerPlayer, capacity.maxGamesPerPlayer);
   const playerName = (id) =>
@@ -182,9 +164,9 @@ function App() {
   const lastScheduledRound = Math.max(0, ...schedule.map((game) => game.round));
 
   function regenerate(nextPlayers = players, nextSettings = settings, desiredGames = gamesPerPlayer) {
-    const nextCapacity = calculateCapacity(nextPlayers, nextSettings, averageGameMinutes);
+    const nextCapacity = calculateCapacity(nextPlayers, nextSettings, DEFAULT_AVERAGE_GAME_MINUTES);
     const target = Math.min(desiredGames, nextCapacity.maxGamesPerPlayer);
-    setSchedule(generateSchedule(nextPlayers, nextSettings, target, averageGameMinutes));
+    setSchedule(generateSchedule(nextPlayers, nextSettings, target, DEFAULT_AVERAGE_GAME_MINUTES));
     setEditingGame(null);
   }
 
@@ -257,7 +239,6 @@ function App() {
       targetGame.scoreA = "";
       targetGame.scoreB = "";
       targetGame.completed = false;
-      targetGame.durationMinutes = null;
 
       const sameGameSlot = targetGame.players.indexOf(playerId);
       if (sameGameSlot !== -1) {
@@ -279,7 +260,6 @@ function App() {
         otherGame.scoreA = "";
         otherGame.scoreB = "";
         otherGame.completed = false;
-        otherGame.durationMinutes = null;
       }
 
       targetGame.players[slot] = playerId;
@@ -305,15 +285,6 @@ function App() {
     setSchedule((current) => current.map((game) =>
       game.id === gameId
         ? { ...game, scoreA: "", scoreB: "", completed: false }
-        : game
-    ));
-  }
-
-  function updateGameDuration(gameId, value) {
-    if (value !== "" && (!/^\d+(?:\.\d{0,1})?$/.test(value) || Number(value) <= 0 || Number(value) > 240)) return;
-    setSchedule((current) => current.map((game) =>
-      game.id === gameId
-        ? { ...game, durationMinutes: value === "" ? null : value }
         : game
     ));
   }
@@ -379,6 +350,7 @@ function App() {
         <div className="stat-card"><span className="stat-label">Results recorded</span><strong>{completedGames}<small> / {schedule.length}</small></strong><span className="stat-note">Rankings update live</span></div>
       </section>
 
+      {/* TEMPORARILY DISABLED: event scheduling and RSVP UI. Retained for later reactivation.
       <section className="section-card event-planner-card">
         <div className="section-title-row">
           <div>
@@ -476,12 +448,14 @@ function App() {
         )}
       </section>
 
+      */}
+
       <section className="section-card settings-card">
         <div className="section-title-row">
           <div>
             <p className="section-kicker">SESSION SETTINGS</p>
             <h2>Courts and playing time</h2>
-            <p className="section-description">The maximum games per player is calculated from session hours, available courts, and the average measured game time.</p>
+            <p className="section-description">The maximum games per player is estimated from session hours, available courts, and a fixed 15-minute game slot.</p>
           </div>
           <span className="pill">{capacity.roundsAvailable} rounds available</span>
         </div>
@@ -508,26 +482,26 @@ function App() {
             <small>Fair rotation estimate</small>
           </div>
           <div className="average-box">
-            <span>AVERAGE GAME TIME</span>
-            <strong>{averageGameMinutesMeasured === null ? "15 min*" : formatMinutes(averageGameMinutesMeasured)}</strong>
-            <small>{averageGameMinutesMeasured === null ? "Planning estimate until durations are entered" : "Average of " + schedule.filter((game) => Number.isFinite(Number(game.durationMinutes)) && Number(game.durationMinutes) > 0).length + " game(s)"}</small>
+            <span>PLANNING GAME SLOT</span>
+            <strong>{DEFAULT_AVERAGE_GAME_MINUTES} min</strong>
+            <small>Fixed estimate used for capacity</small>
           </div>
         </div>
 
         <div className="capacity-details">
-          <div><span>Average time used for planning</span><strong>{capacity.slotMinutes.toFixed(1)} min</strong></div>
+          <div><span>Planning slot per game</span><strong>{capacity.slotMinutes.toFixed(1)} min</strong></div>
           <div><span>Rounds in session</span><strong>{capacity.roundsAvailable}</strong></div>
           <div><span>Games per round</span><strong>{capacity.gamesPerRound}</strong></div>
           <div><span>Session game capacity</span><strong>{capacity.maximumMatches}</strong></div>
         </div>
 
         <div className="settings-actions">
-          <p>Enter each game’s actual duration in minutes to calculate the average automatically. Until durations are entered, the scheduler uses a 15-minute estimate. Generating a new schedule clears scores and durations.</p>
+          <p>The scheduler uses a fixed 15-minute estimate per game to calculate session capacity. Generating a new schedule clears scores.</p>
           <button className="button button-primary" disabled={capacity.maxGamesPerPlayer === 0} onClick={() => regenerate()}>
             Apply settings & generate
           </button>
         </div>
-        {capacity.maxGamesPerPlayer === 0 && <p className="warning-text">There isn’t enough time for a game based on the measured average. Increase the session hours or time another game to update the estimate.</p>}
+        {capacity.maxGamesPerPlayer === 0 && <p className="warning-text">There isn’t enough time for a game using the 15-minute planning estimate. Increase the session hours or add more courts.</p>}
       </section>
 
       <section className="section-card roster-card">
@@ -627,23 +601,6 @@ function App() {
                     <div className="team team-b"><span className="team-label">TEAM B</span><strong>{playerName(game.players[2])}</strong><strong>{playerName(game.players[3])}</strong></div>
                   </div>
 
-                  <div className="game-duration-entry">
-                    <label className="duration-label" htmlFor={"duration-" + game.id}>ACTUAL GAME DURATION (MINUTES)</label>
-                    <input
-                      id={"duration-" + game.id}
-                      type="number"
-                      min="0.1"
-                      max="240"
-                      step="0.1"
-                      value={game.durationMinutes ?? ""}
-                      placeholder="Enter duration"
-                      onChange={(event) => updateGameDuration(game.id, event.target.value)}
-                    />
-                    <p className="score-hint">
-                      {game.durationMinutes ? "Recorded duration: " + formatMinutes(Number(game.durationMinutes)) : "Enter the time taken for this game to update the average."}
-                    </p>
-                  </div>
-
                   <div className="score-area">
                     <span className="score-label">FINAL SCORE</span>
                     <div className="score-inputs">
@@ -690,7 +647,7 @@ function App() {
         <p className="ranking-note">Unplayed games do not affect rankings. Tied scores aren’t counted as completed results.</p>
       </section>
 
-      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span><span>*15-minute estimate until actual game durations are entered.</span></footer>
+      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span><span>Uses a 15-minute planning estimate per game.</span></footer>
     </main>
   );
 }
