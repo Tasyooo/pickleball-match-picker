@@ -24,9 +24,9 @@ function shuffle(items) {
   return result;
 }
 
-function calculateCapacity(players, settings, averageGameMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
-  // Avoid unrealistic capacity when a very short duration is entered.
-  const slotMinutes = Math.max(5, Number(averageGameMinutes) || DEFAULT_AVERAGE_GAME_MINUTES);
+function calculateCapacity(players, settings, gameSlotMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
+  // Keep the minimum slot realistic for session-capacity estimates.
+  const slotMinutes = Math.max(5, Number(gameSlotMinutes) || DEFAULT_AVERAGE_GAME_MINUTES);
   const roundsAvailable = slotMinutes > 0
     ? Math.floor((Number(settings.hours) * 60) / slotMinutes)
     : 0;
@@ -42,10 +42,10 @@ function calculateCapacity(players, settings, averageGameMinutes = DEFAULT_AVERA
   return { slotMinutes, roundsAvailable, gamesPerRound, maximumMatches, maxGamesPerPlayer };
 }
 
-function generateSchedule(players, settings, requestedGamesPerPlayer, averageGameMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
+function generateSchedule(players, settings, requestedGamesPerPlayer, gameSlotMinutes = DEFAULT_AVERAGE_GAME_MINUTES) {
   if (players.length < 4) return [];
 
-  const capacity = calculateCapacity(players, settings, averageGameMinutes);
+  const capacity = calculateCapacity(players, settings, gameSlotMinutes);
   const target = Math.max(0, Math.min(
     Math.floor(Number(requestedGamesPerPlayer) || 0),
     capacity.maxGamesPerPlayer
@@ -481,7 +481,7 @@ function App() {
             <strong>{capacity.maxGamesPerPlayer}</strong>
             <small>Fair rotation estimate</small>
           </div>
-          <div className="average-box">
+          <div className="capacity-box">
             <span>PLANNING GAME SLOT</span>
             <strong>{DEFAULT_AVERAGE_GAME_MINUTES} min</strong>
             <small>Fixed estimate used for capacity</small>
