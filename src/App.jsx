@@ -454,18 +454,20 @@ function App() {
         <div className="section-title-row">
           <div>
             <p className="section-kicker">SESSION SETTINGS</p>
-            <h2>Courts and playing time</h2>
-            <p className="section-description">The maximum games per player is estimated from session hours, available courts, and a fixed 15-minute game slot.</p>
+            <h2>Court and game settings</h2>
+            <p className="section-description">The maximum games per player is estimated using the default 2.5-hour session, available courts, and a fixed 15-minute game slot.</p>
           </div>
           <span className="pill">{capacity.roundsAvailable} rounds available</span>
         </div>
 
         <div className="settings-grid">
+          {/* TEMPORARILY DISABLED: Available hours control. The scheduler continues using the default 2.5-hour session.
           <label className="setting-field">
             <span>Available hours</span>
             <input type="number" min="0.25" max="24" step="0.25" value={settings.hours} onChange={(event) => setSettings((current) => ({ ...current, hours: Math.max(0.25, Math.min(24, Number(event.target.value) || 0.25)) }))} />
             <small>Total session duration</small>
           </label>
+          */}
           <label className="setting-field">
             <span>Number of courts</span>
             <input type="number" min="1" max="12" step="1" value={settings.courts} onChange={(event) => setSettings((current) => ({ ...current, courts: Math.max(1, Math.min(12, Math.floor(Number(event.target.value) || 1))) }))} />
@@ -647,7 +649,7 @@ function App() {
         <p className="ranking-note">Unplayed games do not affect rankings. Tied scores aren’t counted as completed results.</p>
       </section>
 
-      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games · {settings.hours} hours available</span><span>Uses a 15-minute planning estimate per game.</span></footer>
+      <footer className="app-footer"><span>Pickleball Match Picker</span><span>{players.length} players · {schedule.length} games</span><span>Default 2.5-hour session · 15-minute estimate per game.</span></footer>
     </main>
   );
 }
