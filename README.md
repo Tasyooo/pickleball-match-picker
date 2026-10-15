@@ -5,16 +5,13 @@ A React + Vite app for organizing 12 pickleball players into doubles games, edit
 ## Features
 
 - 12 editable player names
-- Schedule pickleball sessions with date, start time, venue, and notes
-- Track player RSVPs as Going, Maybe, Can’t go, or No response
-- Live RSVP summary for each event
+- Event scheduling and RSVP UI is temporarily commented out in the source
 - 5 rounds and 3 courts per round (15 games total)
 - Every player is scheduled for exactly 5 games initially
 - Randomize the schedule
 - Edit the four players in any matchup
 - Record game scores and rank players live
-- Enter actual game durations manually; the app calculates their average without a running timer
-- Estimate maximum games per player from available session hours, court count, and observed average game duration (uses a 15-minute estimate until actual durations are entered)
+- Estimate maximum games per player using session hours, court count, and a fixed 15-minute planning slot
 - Live ranking table with wins, losses, win percentage, and point differential
 - Responsive layout for desktop and mobile
 
@@ -35,4 +32,4 @@ npm run build
 
 ## Notes
 
-This version keeps the session in React state. Refreshing the page resets names, schedules, scores, and game duration entries. Manual matchup edits can change the number of games played by each player; the player list shows current appearances.
+This version keeps the active match session in React state. Refreshing the page resets names, schedules, and scores. Event scheduling and RSVP UI is temporarily commented out in the source. Manual matchup edits can change the number of games played by each player; the player list shows current appearances.
